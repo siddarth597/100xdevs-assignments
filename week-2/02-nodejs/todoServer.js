@@ -10,26 +10,26 @@
     Description: Returns a list of all todo items.
     Response: 200 OK with an array of todo items in JSON format.
     Example: GET http://localhost:3000/todos
-    
+
   2.GET /todos/:id - Retrieve a specific todo item by ID
     Description: Returns a specific todo item identified by its ID.
     Response: 200 OK with the todo item in JSON format if found, or 404 Not Found if not found.
     Example: GET http://localhost:3000/todos/123
-    
+
   3. POST /todos - Create a new todo item
     Description: Creates a new todo item.
     Request Body: JSON object representing the todo item.
     Response: 201 Created with the ID of the created todo item in JSON format. eg: {id: 1}
     Example: POST http://localhost:3000/todos
     Request Body: { "title": "Buy groceries", "completed": false, description: "I should buy groceries" }
-    
+
   4. PUT /todos/:id - Update an existing todo item by ID
     Description: Updates an existing todo item identified by its ID.
     Request Body: JSON object representing the updated todo item.
     Response: 200 OK if the todo item was found and updated, or 404 Not Found if not found.
     Example: PUT http://localhost:3000/todos/123
     Request Body: { "title": "Buy groceries", "completed": true }
-    
+
   5. DELETE /todos/:id - Delete a todo item by ID
     Description: Deletes a todo item identified by its ID.
     Response: 200 OK if the todo item was found and deleted, or 404 Not Found if not found.
@@ -39,11 +39,88 @@
 
   Testing the server - run `npm run test-todoServer` command in terminal
  */
-  const express = require('express');
-  const bodyParser = require('body-parser');
-  
-  const app = express();
-  
-  app.use(bodyParser.json());
-  
-  module.exports = app;
+const express = require("express");
+const bodyParser = require("body-parser");
+const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
+const app = express();
+
+const todosListFilePath = "./todos.json";
+
+function readFromFile(filepath) {
+  return new Promise((resolve, reject) => {
+    fs.readFile(filepath, { encoding: "utf-8" }, (err, data) => {
+      if (err) reject(err);
+      resolve(data);
+    });
+  });
+}
+
+function writeToFile(contents, filepath) {
+  return new Promise((resolve, reject) => {
+    fs.writeFile(filepath, contents, { encoding: "utf-8" }, (err) => {
+      if (err) reject(err);
+      resolve("Done");
+    });
+  });
+}
+
+async function loadTodos() {
+  const data = await readFromFile(todosListFilePath);
+  return JSON.parse(data);
+}
+
+app.get("/todos", async (req, res) => {
+  const todos = await loadTodos();
+
+  return res.status(200).json(todos);
+});
+
+app.post("/todos", async (req, res) => {
+  const title = req?.body?.title;
+  const description = req?.body?.description;
+
+  if (!title || !description) {
+    return res.status(400).send("Bad Request");
+  }
+  const isCompleted = req?.body?.completed || false;
+
+  const randomId = uuidv4();
+  const newTodo = {
+    id: randomId,
+    title,
+    description,
+    completed: isCompleted,
+  };
+
+  const todos = await loadTodos();
+  todos.push(newTodo);
+
+  return res.status(201).json({ id: randomId });
+});
+
+app.get("/todos/:id", async (req, res) => {
+  // get the id from the path params from the request
+  const id = req?.params?.id;
+
+  if (!id) {
+    res.status(400).send("Bad Request");
+  }
+
+  const todos = await loadTodos();
+  const todo = todos.find((todo) => todo.id === id);
+
+  if (!todo) {
+    return res.status(404).send("Not Found");
+  }
+
+  return res.status(200).json(todo);
+});
+
+app.all("*", (req, res) => {
+  return res.status(404).send("Not Found");
+});
+
+app.use(bodyParser.json());
+
+module.exports = app;
